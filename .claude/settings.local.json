@@ -16,7 +16,9 @@
       "Bash(python -c \"import ast; ast.parse\\(open\\('ui/chapters_tab.py', encoding='utf-8'\\).read\\(\\)\\); print\\('chapters_tab.py OK'\\)\")",
       "Bash(python -c \"import ast; ast.parse\\(open\\('novel_exporter.py', encoding='utf-8'\\).read\\(\\)\\); print\\('novel_exporter.py OK'\\)\")",
       "Bash(python -c \"import ast; ast.parse\\(open\\('ui/main_window.py', encoding='utf-8'\\).read\\(\\)\\); print\\('main_window.py OK'\\)\")",
-      "Bash(python -c \"from novel_exporter import export_to_txt, get_sorted_chapters; print\\('novel_exporter import OK'\\)\")"
+      "Bash(python -c \"from novel_exporter import export_to_txt, get_sorted_chapters; print\\('novel_exporter import OK'\\)\")",
+      "Bash(python main.py)",
+      "Bash(pip install *)"
     ],
     "additionalDirectories": [
       "f:\\proj\\AI_NovelGenerator\\.claude\\skills\\stop-slop"
