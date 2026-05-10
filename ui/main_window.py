@@ -27,7 +27,9 @@ from ui.generation_handlers import (
     import_knowledge_handler,
     clear_vectorstore_handler,
     show_plot_arcs_ui,
-    generate_batch_ui
+    generate_batch_ui,
+    _show_batch_stop_button,
+    _hide_batch_stop_button
 )
 from ui.setting_tab import build_setting_tab, load_novel_architecture, save_novel_architecture
 from ui.directory_tab import build_directory_tab, load_chapter_blueprint, save_chapter_blueprint
@@ -422,6 +424,8 @@ class NovelGeneratorGUI:
     finalize_chapter_ui = finalize_chapter_ui
     do_consistency_check = do_consistency_check
     generate_batch_ui = generate_batch_ui
+    _show_batch_stop_button = _show_batch_stop_button
+    _hide_batch_stop_button = _hide_batch_stop_button
     import_knowledge_handler = import_knowledge_handler
     clear_vectorstore_handler = clear_vectorstore_handler
     show_plot_arcs_ui = show_plot_arcs_ui

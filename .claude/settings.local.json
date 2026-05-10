@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(git ls-remote *)",
+      "Bash(ls /tmp/stop-slop-temp/)",
+      "Read(//tmp/**)",
+      "Bash(mkdir -p \"f:/proj/AI_NovelGenerator/.claude/skills/stop-slop/references\")",
+      "Bash(cp /tmp/stop-slop-temp/SKILL.md \"f:/proj/AI_NovelGenerator/.claude/skills/stop-slop/SKILL.md\")",
+      "Bash(cp /tmp/stop-slop-temp/references/phrases.md \"f:/proj/AI_NovelGenerator/.claude/skills/stop-slop/references/phrases.md\")",
+      "Bash(cp /tmp/stop-slop-temp/references/structures.md \"f:/proj/AI_NovelGenerator/.claude/skills/stop-slop/references/structures.md\")",
+      "Bash(cp /tmp/stop-slop-temp/references/examples.md \"f:/proj/AI_NovelGenerator/.claude/skills/stop-slop/references/examples.md\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('novel_generator/chapter.py', encoding='utf-8'\\).read\\(\\)\\); print\\('chapter.py OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('novel_generator/finalization.py', encoding='utf-8'\\).read\\(\\)\\); print\\('finalization.py OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('ui/generation_handlers.py', encoding='utf-8'\\).read\\(\\)\\); print\\('generation_handlers.py OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('ui/chapters_tab.py', encoding='utf-8'\\).read\\(\\)\\); print\\('chapters_tab.py OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('novel_exporter.py', encoding='utf-8'\\).read\\(\\)\\); print\\('novel_exporter.py OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('ui/main_window.py', encoding='utf-8'\\).read\\(\\)\\); print\\('main_window.py OK'\\)\")",
+      "Bash(python -c \"from novel_exporter import export_to_txt, get_sorted_chapters; print\\('novel_exporter import OK'\\)\")"
+    ],
+    "additionalDirectories": [
+      "f:\\proj\\AI_NovelGenerator\\.claude\\skills\\stop-slop"
+    ]
+  }
+}

@@ -457,40 +457,40 @@ def generate_batch_ui(self):
     def open_batch_dialog():
         dialog = ctk.CTkToplevel()
         dialog.title("批量生成章节")
-        
+
         chapter_file = os.path.join(self.filepath_var.get().strip(), "chapters")
         files = glob.glob(os.path.join(chapter_file, "chapter_*.txt"))
         if not files:
             num = 1
         else:
             num = max(int(os.path.basename(f).split('_')[1].split('.')[0]) for f in files) + 1
-            
-        dialog.geometry("400x200")
+
+        dialog.geometry("450x250")
         dialog.resizable(False, False)
-        
+
         # 创建网格布局
         dialog.grid_columnconfigure(0, weight=0)
         dialog.grid_columnconfigure(1, weight=1)
         dialog.grid_columnconfigure(2, weight=0)
         dialog.grid_columnconfigure(3, weight=1)
-        
+
         # 起始章节
         ctk.CTkLabel(dialog, text="起始章节:").grid(row=0, column=0, padx=10, pady=10, sticky="w")
         entry_start = ctk.CTkEntry(dialog)
         entry_start.grid(row=0, column=1, padx=10, pady=10, sticky="ew")
         entry_start.insert(0, str(num))
-        
+
         # 结束章节
         ctk.CTkLabel(dialog, text="结束章节:").grid(row=0, column=2, padx=10, pady=10, sticky="w")
         entry_end = ctk.CTkEntry(dialog)
         entry_end.grid(row=0, column=3, padx=10, pady=10, sticky="ew")
-        
+
         # 期望字数
         ctk.CTkLabel(dialog, text="期望字数:").grid(row=1, column=0, padx=10, pady=10, sticky="w")
         entry_word = ctk.CTkEntry(dialog)
         entry_word.grid(row=1, column=1, padx=10, pady=10, sticky="ew")
         entry_word.insert(0, self.word_number_var.get())
-        
+
         # 最低字数
         ctk.CTkLabel(dialog, text="最低字数:").grid(row=1, column=2, padx=10, pady=10, sticky="w")
         entry_min = ctk.CTkEntry(dialog)
@@ -502,7 +502,13 @@ def generate_batch_ui(self):
         auto_enrich_bool_ck = ctk.CTkCheckBox(dialog, text="低于最低字数时自动扩写", variable=auto_enrich_bool)
         auto_enrich_bool_ck.grid(row=2, column=0, columnspan=2, padx=10, pady=10, sticky="w")
 
-        result = {"start": None, "end": None, "word": None, "min": None, "auto_enrich": None, "close": False}
+        # 失败重试次数
+        ctk.CTkLabel(dialog, text="重试次数:").grid(row=2, column=2, padx=10, pady=10, sticky="w")
+        entry_retry = ctk.CTkEntry(dialog, width=60)
+        entry_retry.grid(row=2, column=3, padx=10, pady=10, sticky="w")
+        entry_retry.insert(0, "3")
+
+        result = {"start": None, "end": None, "word": None, "min": None, "auto_enrich": None, "retry": 3, "close": False}
 
         def on_confirm():
             nonlocal result
@@ -516,6 +522,7 @@ def generate_batch_ui(self):
                 "word": entry_word.get(),
                 "min": entry_min.get(),
                 "auto_enrich": auto_enrich_bool.get(),
+                "retry": int(entry_retry.get() or "3"),
                 "close": False
             }
             dialog.destroy()
@@ -524,23 +531,23 @@ def generate_batch_ui(self):
             nonlocal result
             result["close"] = True
             dialog.destroy()
-            
+
         # 按钮框架
         button_frame = ctk.CTkFrame(dialog)
         button_frame.grid(row=3, column=0, columnspan=4, padx=10, pady=10, sticky="ew")
         button_frame.grid_columnconfigure(0, weight=1)
         button_frame.grid_columnconfigure(1, weight=1)
-        
+
         ctk.CTkButton(button_frame, text="确认", command=on_confirm).grid(row=0, column=0, padx=10, pady=10, sticky="e")
         ctk.CTkButton(button_frame, text="取消", command=on_cancel).grid(row=0, column=1, padx=10, pady=10, sticky="w")
-        
+
         dialog.protocol("WM_DELETE_WINDOW", on_cancel)
         dialog.transient(self.master)
         dialog.grab_set()
         dialog.wait_window(dialog)
         return result
     
-    def generate_chapter_batch(self ,i ,word, min, auto_enrich):
+    def generate_chapter_batch(self, i, word, min_word, auto_enrich, max_retries=3):
         draft_interface_format = self.loaded_config["llm_configs"][self.prompt_draft_llm_var.get()]["interface_format"]
         draft_api_key = self.loaded_config["llm_configs"][self.prompt_draft_llm_var.get()]["api_key"]
         draft_base_url = self.loaded_config["llm_configs"][self.prompt_draft_llm_var.get()]["base_url"]
@@ -548,7 +555,7 @@ def generate_batch_ui(self):
         draft_temperature = self.loaded_config["llm_configs"][self.prompt_draft_llm_var.get()]["temperature"]
         draft_max_tokens = self.loaded_config["llm_configs"][self.prompt_draft_llm_var.get()]["max_tokens"]
         draft_timeout = self.loaded_config["llm_configs"][self.prompt_draft_llm_var.get()]["timeout"]
-        user_guidance = self.user_guide_text.get("0.0", "end").strip()  
+        user_guidance = self.user_guide_text.get("0.0", "end").strip()
 
         char_inv = self.characters_involved_var.get().strip()
         key_items = self.key_items_var.get().strip()
@@ -594,56 +601,74 @@ def generate_batch_ui(self):
                         file_path = os.path.join(root, file)
                         try:
                             with open(file_path, 'r', encoding='utf-8') as f:
-                                role_contents.append(f.read().strip())  # 直接使用文件内容，不添加重复名字
+                                role_contents.append(f.read().strip())
                         except Exception as e:
                             self.safe_log(f"读取角色文件 {file} 失败: {str(e)}")
         if role_contents:
             role_content_str = "\n".join(role_contents)
-            # 更精确的替换逻辑，处理不同情况下的占位符
+            import config_manager
+            role_label = "Core characters:" if config_manager.IS_ENGLISH else "核心人物："
             placeholder_variations = [
+                "Core characters (may not be specified): {characters_involved}",
+                "Core characters: {characters_involved}",
                 "核心人物(可能未指定)：{characters_involved}",
                 "核心人物：{characters_involved}",
                 "核心人物(可能未指定):{characters_involved}",
                 "核心人物:{characters_involved}"
             ]
-            
+
             for placeholder in placeholder_variations:
                 if placeholder in final_prompt:
                     final_prompt = final_prompt.replace(
                         placeholder,
-                        f"核心人物：\n{role_content_str}"
+                        f"{role_label}\n{role_content_str}"
                     )
                     break
-            else:  # 如果没有找到任何已知占位符变体
+            else:
                 lines = final_prompt.split('\n')
-                for i, line in enumerate(lines):
-                    if "核心人物" in line and "：" in line:
-                        lines[i] = f"核心人物：\n{role_content_str}"
+                search_key = "Core characters" if config_manager.IS_ENGLISH else "核心人物"
+                for idx, line in enumerate(lines):
+                    if search_key in line and (":" in line or "：" in line):
+                        lines[idx] = f"{role_label}\n{role_content_str}"
                         break
                 final_prompt = '\n'.join(lines)
-        draft_text = generate_chapter_draft(
-            api_key=draft_api_key,
-            base_url=draft_base_url,
-            model_name=draft_model_name,
-            filepath=self.filepath_var.get().strip(),
-            novel_number=i,
-            word_number=word,
-            temperature=draft_temperature,
-            user_guidance=user_guidance,
-            characters_involved=char_inv,
-            key_items=key_items,
-            scene_location=scene_loc,
-            time_constraint=time_constr,
-            embedding_api_key=embedding_api_key,
-            embedding_url=embedding_url,
-            embedding_interface_format=embedding_interface_format,
-            embedding_model_name=embedding_model_name,
-            embedding_retrieval_k=embedding_k,
-            interface_format=draft_interface_format,
-            max_tokens=draft_max_tokens,
-            timeout=draft_timeout,
-            custom_prompt_text=final_prompt  
-        )
+
+        import time
+        draft_text = ""
+        for attempt in range(max_retries):
+            try:
+                draft_text = generate_chapter_draft(
+                    api_key=draft_api_key,
+                    base_url=draft_base_url,
+                    model_name=draft_model_name,
+                    filepath=self.filepath_var.get().strip(),
+                    novel_number=i,
+                    word_number=word,
+                    temperature=draft_temperature,
+                    user_guidance=user_guidance,
+                    characters_involved=char_inv,
+                    key_items=key_items,
+                    scene_location=scene_loc,
+                    time_constraint=time_constr,
+                    embedding_api_key=embedding_api_key,
+                    embedding_url=embedding_url,
+                    embedding_interface_format=embedding_interface_format,
+                    embedding_model_name=embedding_model_name,
+                    embedding_retrieval_k=embedding_k,
+                    interface_format=draft_interface_format,
+                    max_tokens=draft_max_tokens,
+                    timeout=draft_timeout,
+                    custom_prompt_text=final_prompt
+                )
+                if draft_text and draft_text.strip():
+                    break
+                self.safe_log(f"第{i}章草稿为空，第{attempt+1}次重试...")
+            except Exception as e:
+                self.safe_log(f"第{i}章生成失败（第{attempt+1}次）: {str(e)}")
+                if attempt < max_retries - 1:
+                    time.sleep(5)
+                else:
+                    raise
 
         finalize_interface_format = self.loaded_config["llm_configs"][self.final_chapter_llm_var.get()]["interface_format"]
         finalize_api_key = self.loaded_config["llm_configs"][self.final_chapter_llm_var.get()]["api_key"]
@@ -656,8 +681,8 @@ def generate_batch_ui(self):
         chapters_dir = os.path.join(self.filepath_var.get().strip(), "chapters")
         os.makedirs(chapters_dir, exist_ok=True)
         chapter_path = os.path.join(chapters_dir, f"chapter_{i}.txt")
-        if get_word_count(draft_text) < 0.7 * min and auto_enrich:
-            self.safe_log(f"第{i}章草稿字数 ({get_word_count(draft_text)}) 低于目标字数({min})的70%，正在扩写...")
+        if draft_text and get_word_count(draft_text) < 0.7 * min_word and auto_enrich:
+            self.safe_log(f"第{i}章草稿字数 ({get_word_count(draft_text)}) 低于目标字数({min_word})的70%，正在扩写...")
             enriched = enrich_chapter_text(
                 chapter_text=draft_text,
                 word_number=word,
@@ -689,13 +714,68 @@ def generate_batch_ui(self):
             timeout=finalize_timeout
         )
 
-
     result = open_batch_dialog()
     if result["close"]:
         return
 
-    for i in range(int(result["start"]), int(result["end"]) + 1):
-        generate_chapter_batch(self, i, int(result["word"]), int(result["min"]), result["auto_enrich"])
+    start_chap = int(result["start"])
+    end_chap = int(result["end"])
+    word = int(result["word"])
+    min_word = int(result["min"])
+    auto_enrich = result["auto_enrich"]
+    max_retries = result.get("retry", 3)
+
+    if not hasattr(self, '_batch_stop_flag'):
+        self._batch_stop_flag = threading.Event()
+    self._batch_stop_flag.clear()
+
+    def batch_task():
+        self.safe_log(f"开始批量生成：第{start_chap}章 ~ 第{end_chap}章")
+        total = end_chap - start_chap + 1
+        failed_chapters = []
+
+        for idx, i in enumerate(range(start_chap, end_chap + 1)):
+            if self._batch_stop_flag.is_set():
+                self.safe_log(f"⚠️ 批量生成已中断，停止在第{i}章之前。")
+                break
+
+            self.safe_log(f"[{idx+1}/{total}] 正在生成第{i}章...")
+            try:
+                generate_chapter_batch(self, i, word, min_word, auto_enrich, max_retries)
+                self.safe_log(f"✅ 第{i}章完成 [{idx+1}/{total}]")
+            except Exception as e:
+                failed_chapters.append(i)
+                self.safe_log(f"❌ 第{i}章最终失败: {str(e)}")
+                continue
+
+        if self._batch_stop_flag.is_set():
+            self.safe_log(f"批量生成被用户中断。已完成到第{i-1}章。")
+        elif failed_chapters:
+            self.safe_log(f"批量生成结束。失败章节: {failed_chapters}")
+        else:
+            self.safe_log(f"✅ 批量生成全部完成！第{start_chap}章 ~ 第{end_chap}章")
+
+        self.master.after(0, lambda: self._hide_batch_stop_button())
+
+    def stop_batch():
+        self._batch_stop_flag.set()
+        self.safe_log("正在停止批量生成（当前章节完成后停止）...")
+
+    self._show_batch_stop_button(stop_batch)
+    threading.Thread(target=batch_task, daemon=True).start()
+
+def _show_batch_stop_button(self, stop_callback):
+    if hasattr(self, '_batch_stop_btn') and self._batch_stop_btn.winfo_exists():
+        self._batch_stop_btn.destroy()
+    self._batch_stop_btn = ctk.CTkButton(
+        self.master, text="停止批量生成", fg_color="red", hover_color="darkred",
+        command=stop_callback, width=120, height=28
+    )
+    self._batch_stop_btn.place(relx=0.5, rely=0.015, anchor="n")
+
+def _hide_batch_stop_button(self):
+    if hasattr(self, '_batch_stop_btn') and self._batch_stop_btn.winfo_exists():
+        self._batch_stop_btn.destroy()
 
 
 def import_knowledge_handler(self):

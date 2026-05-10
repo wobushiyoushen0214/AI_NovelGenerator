@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 import os
 import customtkinter as ctk
-from tkinter import messagebox
+from tkinter import messagebox, filedialog
 from ui.context_menu import TextWidgetContextMenu
 from utils import read_file, save_string_to_txt, clear_file_content, get_word_count
 
@@ -35,6 +35,9 @@ def build_chapters_tab(self):
 
     refresh_btn = ctk.CTkButton(top_frame, text="刷新章节列表", command=self.refresh_chapters_list, font=("Microsoft YaHei", 12))
     refresh_btn.grid(row=0, column=5, padx=5, pady=5, sticky="e")
+
+    export_btn = ctk.CTkButton(top_frame, text="导出小说", command=lambda: export_novel_dialog(self), font=("Microsoft YaHei", 12))
+    export_btn.grid(row=0, column=6, padx=5, pady=5, sticky="e")
 
     self.chapters_word_count_label = ctk.CTkLabel(top_frame, text="字数：0", font=("Microsoft YaHei", 12))
     self.chapters_word_count_label.grid(row=0, column=4, padx=(0,10), sticky="e")
@@ -138,3 +141,74 @@ def next_chapter(self):
         load_chapter_content(self, self.chapters_list[new_idx])
     else:
         messagebox.showinfo("提示", "已经是最后一章了。")
+
+
+def export_novel_dialog(self):
+    filepath = self.filepath_var.get().strip()
+    if not filepath:
+        messagebox.showwarning("警告", "请先配置保存文件路径")
+        return
+
+    dialog = ctk.CTkToplevel(self.master)
+    dialog.title("导出小说")
+    dialog.geometry("400x220")
+    dialog.resizable(False, False)
+    dialog.transient(self.master)
+    dialog.grab_set()
+
+    dialog.grid_columnconfigure(1, weight=1)
+
+    ctk.CTkLabel(dialog, text="小说标题:", font=("Microsoft YaHei", 12)).grid(row=0, column=0, padx=10, pady=8, sticky="w")
+    title_entry = ctk.CTkEntry(dialog, font=("Microsoft YaHei", 12))
+    title_entry.grid(row=0, column=1, padx=10, pady=8, sticky="ew")
+
+    ctk.CTkLabel(dialog, text="作者:", font=("Microsoft YaHei", 12)).grid(row=1, column=0, padx=10, pady=8, sticky="w")
+    author_entry = ctk.CTkEntry(dialog, font=("Microsoft YaHei", 12))
+    author_entry.grid(row=1, column=1, padx=10, pady=8, sticky="ew")
+
+    ctk.CTkLabel(dialog, text="导出格式:", font=("Microsoft YaHei", 12)).grid(row=2, column=0, padx=10, pady=8, sticky="w")
+    format_var = ctk.StringVar(value="TXT")
+    format_menu = ctk.CTkOptionMenu(dialog, values=["TXT", "EPUB"], variable=format_var, font=("Microsoft YaHei", 12))
+    format_menu.grid(row=2, column=1, padx=10, pady=8, sticky="w")
+
+    def do_export():
+        title = title_entry.get().strip()
+        author = author_entry.get().strip()
+        fmt = format_var.get()
+
+        if fmt == "TXT":
+            output_path = filedialog.asksaveasfilename(
+                title="保存TXT文件",
+                defaultextension=".txt",
+                filetypes=[("Text Files", "*.txt")],
+                initialfile=f"{title or 'novel'}.txt"
+            )
+        else:
+            output_path = filedialog.asksaveasfilename(
+                title="保存EPUB文件",
+                defaultextension=".epub",
+                filetypes=[("EPUB Files", "*.epub")],
+                initialfile=f"{title or 'novel'}.epub"
+            )
+
+        if not output_path:
+            return
+
+        try:
+            from novel_exporter import export_to_txt, export_to_epub
+            if fmt == "TXT":
+                export_to_txt(filepath, output_path, title=title)
+            else:
+                export_to_epub(filepath, output_path, title=title, author=author)
+            dialog.destroy()
+            messagebox.showinfo("导出成功", f"小说已导出到:\n{output_path}")
+            self.safe_log(f"✅ 小说导出成功: {output_path}")
+        except ImportError as e:
+            messagebox.showerror("缺少依赖", str(e))
+        except Exception as e:
+            messagebox.showerror("导出失败", f"导出时出错: {str(e)}")
+
+    btn_frame = ctk.CTkFrame(dialog)
+    btn_frame.grid(row=3, column=0, columnspan=2, pady=15)
+    ctk.CTkButton(btn_frame, text="导出", command=do_export, font=("Microsoft YaHei", 12)).pack(side="left", padx=10)
+    ctk.CTkButton(btn_frame, text="取消", command=dialog.destroy, font=("Microsoft YaHei", 12)).pack(side="left", padx=10)

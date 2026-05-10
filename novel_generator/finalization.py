@@ -81,16 +81,22 @@ def finalize_chapter(
     clear_file_content(character_state_file)
     save_string_to_txt(new_char_state, character_state_file)
 
-    update_vector_store(
-        embedding_adapter=create_embedding_adapter(
-            embedding_interface_format,
-            embedding_api_key,
-            embedding_url,
-            embedding_model_name
-        ),
-        new_chapter=chapter_text,
-        filepath=filepath
-    )
+    if embedding_api_key and embedding_url:
+        try:
+            update_vector_store(
+                embedding_adapter=create_embedding_adapter(
+                    embedding_interface_format,
+                    embedding_api_key,
+                    embedding_url,
+                    embedding_model_name
+                ),
+                new_chapter=chapter_text,
+                filepath=filepath
+            )
+        except Exception as e:
+            logging.warning(f"Vector store update failed (non-critical): {e}")
+    else:
+        logging.info("Embedding not configured, skipping vector store update.")
 
     logging.info(f"Chapter {novel_number} has been finalized.")
 

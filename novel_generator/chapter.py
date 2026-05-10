@@ -397,97 +397,102 @@ def build_chapter_prompt(
             break
 
     # 知识库检索和处理
+    filtered_context = "（未配置知识库）"
     try:
-        # 生成检索关键词
-        llm_adapter = create_llm_adapter(
-            interface_format=interface_format,
-            base_url=base_url,
-            model_name=model_name,
-            api_key=api_key,
-            temperature=0.3,
-            max_tokens=max_tokens,
-            timeout=timeout
-        )
-        
-        search_prompt = prompt_definitions.knowledge_search_prompt.format(
-            chapter_number=novel_number,
-            chapter_title=chapter_title,
-            characters_involved=characters_involved,
-            key_items=key_items,
-            scene_location=scene_location,
-            chapter_role=chapter_role,
-            chapter_purpose=chapter_purpose,
-            foreshadowing=foreshadowing,
-            short_summary=short_summary,
-            user_guidance=user_guidance,
-            time_constraint=time_constraint
-        )
-        
-        search_response = invoke_with_cleaning(llm_adapter, search_prompt)
-        keyword_groups = parse_search_keywords(search_response)
+        if not embedding_api_key or not embedding_url:
+            logging.info("Embedding not configured, skipping knowledge retrieval")
+            filtered_context = "（未配置向量检索，跳过知识库）"
+        else:
+            # 生成检索关键词
+            llm_adapter = create_llm_adapter(
+                interface_format=interface_format,
+                base_url=base_url,
+                model_name=model_name,
+                api_key=api_key,
+                temperature=0.3,
+                max_tokens=max_tokens,
+                timeout=timeout
+            )
 
-        # 执行向量检索
-        all_contexts = []
-        from embedding_adapters import create_embedding_adapter
-        embedding_adapter = create_embedding_adapter(
-            embedding_interface_format,
-            embedding_api_key,
-            embedding_url,
-            embedding_model_name
-        )
-        
-        store = load_vector_store(embedding_adapter, filepath)
-        if store:
-            collection_size = store._collection.count()
-            actual_k = min(embedding_retrieval_k, max(1, collection_size))
-            
-            for group in keyword_groups:
-                context = get_relevant_context_from_vector_store(
-                    embedding_adapter=embedding_adapter,
-                    query=group,
-                    filepath=filepath,
-                    k=actual_k
-                )
-                if context:
-                    if any(kw in group.lower() for kw in ["技法", "手法", "模板"]):
-                        all_contexts.append(f"[TECHNIQUE] {context}")
-                    elif any(kw in group.lower() for kw in ["设定", "技术", "世界观"]):
-                        all_contexts.append(f"[SETTING] {context}")
-                    else:
-                        all_contexts.append(f"[GENERAL] {context}")
+            search_prompt = prompt_definitions.knowledge_search_prompt.format(
+                chapter_number=novel_number,
+                chapter_title=chapter_title,
+                characters_involved=characters_involved,
+                key_items=key_items,
+                scene_location=scene_location,
+                chapter_role=chapter_role,
+                chapter_purpose=chapter_purpose,
+                foreshadowing=foreshadowing,
+                short_summary=short_summary,
+                user_guidance=user_guidance,
+                time_constraint=time_constraint
+            )
 
-        # 应用内容规则
-        processed_contexts = apply_content_rules(all_contexts, novel_number)
-        
-        # 执行知识过滤
-        chapter_info_for_filter = {
-            "chapter_number": novel_number,
-            "chapter_title": chapter_title,
-            "chapter_role": chapter_role,
-            "chapter_purpose": chapter_purpose,
-            "characters_involved": characters_involved,
-            "key_items": key_items,
-            "scene_location": scene_location,
-            "foreshadowing": foreshadowing,  # 修复拼写错误
-            "suspense_level": suspense_level,
-            "plot_twist_level": plot_twist_level,
-            "chapter_summary": chapter_summary,
-            "time_constraint": time_constraint
-        }
-        
-        filtered_context = get_filtered_knowledge_context(
-            api_key=api_key,
-            base_url=base_url,
-            model_name=model_name,
-            interface_format=interface_format,
-            embedding_adapter=embedding_adapter,
-            filepath=filepath,
-            chapter_info=chapter_info_for_filter,
-            retrieved_texts=processed_contexts,
-            max_tokens=max_tokens,
-            timeout=timeout
-        )
-        
+            search_response = invoke_with_cleaning(llm_adapter, search_prompt)
+            keyword_groups = parse_search_keywords(search_response)
+
+            # 执行向量检索
+            all_contexts = []
+            from embedding_adapters import create_embedding_adapter
+            embedding_adapter = create_embedding_adapter(
+                embedding_interface_format,
+                embedding_api_key,
+                embedding_url,
+                embedding_model_name
+            )
+
+            store = load_vector_store(embedding_adapter, filepath)
+            if store:
+                collection_size = store._collection.count()
+                actual_k = min(embedding_retrieval_k, max(1, collection_size))
+
+                for group in keyword_groups:
+                    context = get_relevant_context_from_vector_store(
+                        embedding_adapter=embedding_adapter,
+                        query=group,
+                        filepath=filepath,
+                        k=actual_k
+                    )
+                    if context:
+                        if any(kw in group.lower() for kw in ["技法", "手法", "模板"]):
+                            all_contexts.append(f"[TECHNIQUE] {context}")
+                        elif any(kw in group.lower() for kw in ["设定", "技术", "世界观"]):
+                            all_contexts.append(f"[SETTING] {context}")
+                        else:
+                            all_contexts.append(f"[GENERAL] {context}")
+
+            # 应用内容规则
+            processed_contexts = apply_content_rules(all_contexts, novel_number)
+
+            # 执行知识过滤
+            chapter_info_for_filter = {
+                "chapter_number": novel_number,
+                "chapter_title": chapter_title,
+                "chapter_role": chapter_role,
+                "chapter_purpose": chapter_purpose,
+                "characters_involved": characters_involved,
+                "key_items": key_items,
+                "scene_location": scene_location,
+                "foreshadowing": foreshadowing,
+                "suspense_level": suspense_level,
+                "plot_twist_level": plot_twist_level,
+                "chapter_summary": chapter_summary,
+                "time_constraint": time_constraint
+            }
+
+            filtered_context = get_filtered_knowledge_context(
+                api_key=api_key,
+                base_url=base_url,
+                model_name=model_name,
+                interface_format=interface_format,
+                embedding_adapter=embedding_adapter,
+                filepath=filepath,
+                chapter_info=chapter_info_for_filter,
+                retrieved_texts=processed_contexts,
+                max_tokens=max_tokens,
+                timeout=timeout
+            )
+
     except Exception as e:
         logging.error(f"知识处理流程异常：{str(e)}")
         filtered_context = "（知识库处理失败）"
